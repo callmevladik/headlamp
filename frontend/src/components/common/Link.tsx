@@ -1,8 +1,11 @@
 import MuiLink from '@mui/material/Link';
 import React from 'react';
+import { useDispatch } from 'react-redux';
 import { Link as RouterLink } from 'react-router-dom';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { createRouteURL, RouteURLProps } from '../../lib/router';
+import { setSelectedResource } from '../../redux/drawerModeSlice';
+import { useTypedSelector } from '../../redux/reducers/reducers';
 import { LightTooltip } from './Tooltip';
 
 export interface LinkBaseProps {
@@ -21,6 +24,7 @@ export interface LinkProps extends LinkBaseProps {
   state?: {
     [prop: string]: any;
   };
+  drawerEnabled?: boolean;
 }
 
 export interface LinkObjectProps extends LinkBaseProps {
@@ -29,16 +33,8 @@ export interface LinkObjectProps extends LinkBaseProps {
 }
 
 function PureLink(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
-  if ((props as LinkObjectProps).kubeObject) {
-    const { kubeObject, ...otherProps } = props as LinkObjectProps;
-    return (
-      <MuiLink component={RouterLink} to={kubeObject!.getDetailsLink()} {...otherProps}>
-        {props.children || kubeObject!.getName()}
-      </MuiLink>
-    );
-  }
+  const { routeName, params = {}, search, state, ...otherProps } = props as LinkObjectProps;
 
-  const { routeName, params = {}, search, state, ...otherProps } = props as LinkProps;
   return (
     <MuiLink
       component={RouterLink}
@@ -55,7 +51,11 @@ function PureLink(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
 }
 
 export default function Link(props: React.PropsWithChildren<LinkProps | LinkObjectProps>) {
-  const { tooltip, ...otherProps } = props;
+  const drawerEnabled = useTypedSelector(state => state.drawerMode.isDetailDrawerEnabled);
+  const dispatch = useDispatch();
+
+  const { tooltip, kubeObject, ...otherProps } = props as LinkObjectProps;
+
   if (tooltip) {
     let tooltipText = '';
     if (typeof tooltip === 'string') {
@@ -75,6 +75,41 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
         </LightTooltip>
       );
     }
+  }
+
+  if ('kubeObject' in props && kubeObject) {
+    {
+      /* NOTE: there is an issue where TS would throw an error for using KubeObject<any> along with the return undefined, this seems to fix it
+       * if we were to use dispatch(setSelectedResource(kubeObject!)); the error for returning kubeObject<any> & void would appear
+       */
+    }
+
+    const kubeJSON = kubeObject.jsonData;
+    return (
+      <>
+        {drawerEnabled === true && props.kubeObject ? (
+          <MuiLink
+            onClick={() => {
+              if (drawerEnabled) {
+                console.log('kubeObject', kubeObject);
+                dispatch(setSelectedResource(kubeJSON!));
+                window.history.pushState(
+                  { path: kubeObject.getDetailsLink() },
+                  '',
+                  kubeObject.getDetailsLink()
+                );
+              }
+            }}
+          >
+            {props.children || kubeObject.getName()}
+          </MuiLink>
+        ) : (
+          <MuiLink component={RouterLink} to={kubeObject.getDetailsLink()} {...otherProps}>
+            {props.children || kubeObject.getName()}
+          </MuiLink>
+        )}
+      </>
+    );
   }
 
   return <PureLink {...otherProps} />;
