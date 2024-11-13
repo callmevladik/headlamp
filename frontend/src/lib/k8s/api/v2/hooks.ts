@@ -4,7 +4,7 @@ import { getCluster } from '../../../cluster';
 import { ApiError, QueryParameters } from '../../apiProxy';
 import { KubeObject, KubeObjectInterface } from '../../KubeObject';
 import { clusterFetch } from './fetch';
-import { KubeListUpdateEvent } from './KubeList';
+import { KubeList, KubeListUpdateEvent } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { useWebSocket } from './webSocket';
@@ -66,6 +66,19 @@ export interface QueryListResponse<DataType, ItemType, ErrorType>
 }
 
 /**
+ * Type guard to check if a response is a watch event
+ */
+export function isKubeListUpdateEvent<T extends KubeObjectInterface>(
+  data: KubeListUpdateEvent<T> | KubeList<T>
+): data is KubeListUpdateEvent<T> {
+  return (
+    'type' in data &&
+    'object' in data &&
+    ['ADDED', 'MODIFIED', 'DELETED', 'ERROR'].includes((data as KubeListUpdateEvent<T>).type)
+  );
+}
+
+/**
  * Returns a single KubeObject.
  */
 export function useKubeObject<K extends KubeObject>({
@@ -118,7 +131,7 @@ export function useKubeObject<K extends KubeObject>({
 
   const data: Instance | null = query.error ? null : query.data ?? null;
 
-  useWebSocket<KubeListUpdateEvent<Instance>>({
+  useWebSocket<Instance>({
     url: () =>
       makeUrl([KubeObjectEndpoint.toUrl(endpoint!)], {
         ...cleanedUpQueryParams,
